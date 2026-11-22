@@ -1,0 +1,17 @@
+{
+  "name": "dermaai",
+  "version": "1.0.0",
+  "description": "DermaAI: Express + lowdb + Gemini API",
+  "main": "server-gemini.js",
+  "scripts": {
+    "start": "node --dns-result-order=ipv4first --no-network-family-autoselection server-gemini.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "@google/generative-ai": "^0.21.0",
+    "lowdb": "^1.0.0",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1"
+  }
+}

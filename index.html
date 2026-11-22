@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DermaAI — Understand Your Skin & Hair</title>
+<style>
+:root{
+  --bg:#fbfbfd; --bg2:#ffffff; --ink:#1d1d1f; --sub:#6e6e73;
+  --blue:#0071e3; --blue-d:#0059b3; --line:rgba(0,0,0,0.08);
+  --card:#ffffff; --danger:#c7402c; --safe:#1a7f4e;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#000000; --bg2:#0a0a0c; --ink:#f5f5f7; --sub:#a1a1a6;
+    --line:rgba(255,255,255,0.12); --card:#161618;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#000000; --bg2:#0a0a0c; --ink:#f5f5f7; --sub:#a1a1a6;
+  --line:rgba(255,255,255,0.12); --card:#161618;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px); scroll-behavior:smooth;}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:900px;margin:0 auto;padding:0 24px;}
+header.nav{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:20;
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  background:color-mix(in srgb, var(--bg) 75%, transparent);
+  border-bottom:1px solid var(--line);
+}
+.nav-inner{max-width:900px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;}
+.brand{font-weight:600;font-size:19px;letter-spacing:-0.02em;}
+.brand span{color:var(--blue);}
+.tag{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:14px;}
+.history-btn{background:none;border:none;color:var(--blue);font-size:13px;font-weight:500;cursor:pointer;padding:0;}
+
+/* history drawer */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:30;display:none;}
+.drawer-backdrop.open{display:block;animation:fade .2s ease both;}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.drawer{
+  position:fixed;top:0;right:-380px;width:360px;max-width:88vw;height:100%;background:var(--bg2);
+  z-index:31;transition:right .35s cubic-bezier(.32,.72,0,1);box-shadow:-10px 0 40px rgba(0,0,0,0.15);
+  padding:calc(20px + env(safe-area-inset-top,0px)) 20px 20px;overflow-y:auto;
+}
+.drawer.open{right:0;}
+.drawer h3{margin:0 0 18px;font-size:20px;letter-spacing:-0.01em;}
+.drawer-close{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));right:18px;background:var(--bg);border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;color:var(--sub);font-size:16px;}
+.history-item{
+  display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;cursor:pointer;
+  border:1px solid var(--line);margin-bottom:10px;background:var(--card);transition:background .15s ease;
+}
+.history-item:hover{background:var(--bg);}
+.history-thumb{width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--line);flex-shrink:0;}
+.history-thumb.placeholder{display:flex;align-items:center;justify-content:center;font-size:18px;}
+.history-meta{min-width:0;}
+.history-meta .t{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.history-meta .d{font-size:12px;color:var(--sub);}
+.history-empty{color:var(--sub);font-size:14px;text-align:center;padding:40px 10px;}
+
+.hero{padding:88px 0 40px;text-align:center;}
+.hero h1{
+  font-size:clamp(34px,6vw,64px); line-height:1.05; letter-spacing:-0.03em;
+  margin:0 0 14px; font-weight:600;
+  background:linear-gradient(180deg,var(--ink),var(--sub));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:rise .8s ease both;
+}
+.hero p{font-size:clamp(16px,2.4vw,21px);color:var(--sub);max-width:560px;margin:0 auto 40px;animation:rise .9s .1s ease both;}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+.searchbar{
+  display:flex;align-items:center;gap:10px;
+  background:var(--card); border:1px solid var(--line);
+  border-radius:999px; padding:8px 8px 8px 22px;
+  max-width:620px;margin:0 auto;box-shadow:0 10px 30px rgba(0,0,0,0.06);
+  animation:rise 1s .2s ease both; transition:box-shadow .25s ease, border-color .25s ease;
+}
+.searchbar:focus-within{border-color:var(--blue);box-shadow:0 10px 34px rgba(0,113,227,0.18);}
+.searchbar input{
+  flex:1;border:none;outline:none;background:transparent;font-size:16px;color:var(--ink);
+  min-width:0;
+}
+.searchbar input::placeholder{color:var(--sub);}
+.icon-btn{
+  width:42px;height:42px;border-radius:50%;border:none;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+  transition:background .2s ease, transform .15s ease;
+}
+.icon-btn:hover{background:var(--line);}
+.icon-btn:active{transform:scale(0.92);}
+.icon-btn.primary{background:var(--blue);}
+.icon-btn.primary svg{stroke:#fff;}
+.icon-btn svg{width:20px;height:20px;stroke:var(--ink);fill:none;stroke-width:1.8;}
+.hint{font-size:13px;color:var(--sub);margin-top:14px;animation:rise 1.1s .3s ease both;}
+
+/* camera panel */
+.camera-panel{
+  max-width:620px;margin:18px auto 0;background:var(--card);border:1px solid var(--line);
+  border-radius:24px;overflow:hidden;display:none;box-shadow:0 10px 30px rgba(0,0,0,0.08);
+}
+.camera-panel.open{display:block;animation:rise .35s ease both;}
+.camera-stage{position:relative;background:var(--bg);aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;}
+.camera-stage img{width:100%;height:100%;object-fit:cover;display:block;}
+.picker-empty{display:flex;flex-direction:column;gap:12px;align-items:center;}
+.picker-empty .ghost-btn{min-width:210px;padding:14px 20px;font-size:15px;}
+.camera-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:18px;flex-wrap:wrap;}
+.shutter{
+  width:64px;height:64px;border-radius:50%;border:3px solid var(--ink);background:transparent;cursor:pointer;
+  position:relative;transition:transform .12s ease;
+}
+.shutter:active{transform:scale(0.92);}
+.shutter::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--ink);}
+.ghost-btn{
+  border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;
+  padding:10px 18px;font-size:14px;cursor:pointer;
+}
+.upload-row{padding:0 18px 18px;text-align:center;}
+.upload-row label{color:var(--blue);font-size:14px;cursor:pointer;}
+.upload-row input{display:none;}
+.visually-hidden{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+
+/* results */
+.results{max-width:680px;margin:34px auto 0;display:none;}
+.results.open{display:block;animation:rise .4s ease both;}
+.result-card{
+  background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;margin-bottom:16px;
+}
+.result-card h3{margin:0 0 10px;font-size:20px;letter-spacing:-0.01em;}
+.result-card p{margin:0;color:var(--sub);line-height:1.55;font-size:15px;}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+  padding:5px 12px;border-radius:999px;margin-bottom:14px;
+}
+.badge.info{background:rgba(0,113,227,0.12);color:var(--blue-d);}
+.badge.warn{background:rgba(199,64,44,0.12);color:var(--danger);}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--ink);}
+
+/* related carousel */
+.related-label{font-size:13px;color:var(--sub);margin:26px 2px 12px;font-weight:500;}
+.carousel{
+  display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px 14px;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+.carousel::-webkit-scrollbar{display:none;}
+.rel-card{
+  flex:0 0 auto;width:190px;scroll-snap-align:start;border-radius:18px;overflow:hidden;
+  border:1px solid var(--line);background:var(--bg2);
+}
+.rel-card .art{width:190px;height:130px;display:block;}
+.rel-card .cap{padding:12px 14px 14px;}
+.rel-card .cap b{display:block;font-size:13.5px;margin-bottom:2px;}
+.rel-card .cap span{font-size:12px;color:var(--sub);}
+
+/* follow-up chat */
+.chat-panel{margin-top:16px;border:1px solid var(--line);border-radius:20px;background:var(--card);overflow:hidden;}
+.chat-head{padding:16px 20px 4px;font-size:14px;font-weight:600;color:var(--sub);}
+.chat-log{padding:10px 18px;display:flex;flex-direction:column;gap:10px;max-height:360px;overflow-y:auto;}
+.bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14.5px;line-height:1.45;}
+.bubble.user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:4px;}
+.bubble.ai{align-self:flex-start;background:var(--bg);color:var(--ink);border-bottom-left-radius:4px;}
+.bubble.ai.typing{color:var(--sub);}
+.chat-input-row{display:flex;gap:8px;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);}
+.chat-input-row input{
+  flex:1;border:1px solid var(--line);border-radius:999px;padding:10px 16px;font-size:14px;
+  background:var(--bg);color:var(--ink);outline:none;min-width:0;
+}
+.chat-input-row input:focus{border-color:var(--blue);}
+.chat-send{
+  width:38px;height:38px;border-radius:50%;border:none;background:var(--blue);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.chat-send svg{width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2;}
+.chat-send:disabled{opacity:.5;cursor:default;}
+.disclaimer-box{
+  border:1px solid var(--line); background:var(--bg2); border-radius:16px; padding:18px 20px;
+  font-size:13px; color:var(--sub); line-height:1.5; margin-top:4px;
+}
+
+.loading{display:none;text-align:center;padding:40px 0;color:var(--sub);font-size:15px;}
+.loading.open{display:block;}
+.spinner{
+  width:28px;height:28px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--blue);
+  margin:0 auto 14px;animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* how it works */
+section.how{padding:100px 0 70px;}
+section.how h2{text-align:center;font-size:clamp(26px,4vw,38px);letter-spacing:-0.02em;margin-bottom:56px;}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;}
+@media(max-width:680px){.steps{grid-template-columns:1fr;}}
+.step{text-align:center;padding:0 10px;}
+.step-num{
+  width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:flex;
+  align-items:center;justify-content:center;font-weight:600;margin:0 auto 18px;font-size:16px;
+}
+.step h4{margin:0 0 8px;font-size:17px;}
+.step p{margin:0;color:var(--sub);font-size:14px;line-height:1.5;}
+
+footer{border-top:1px solid var(--line);padding:34px 0 calc(34px + env(safe-area-inset-bottom,0px));}
+footer .wrap{display:flex;flex-direction:column;gap:8px;}
+footer p{margin:0;font-size:12px;color:var(--sub);line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div id="debugBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#c7402c;color:#fff;font-size:12px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));word-break:break-word;"></div>
+<header class="nav">
+  <div class="nav-inner">
+    <div class="brand">Derma<span>AI</span></div>
+    <div class="tag">Skin & Hair, understood <button class="history-btn" id="historyBtn">History</button></div>
+  </div>
+</header>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<div class="drawer" id="drawer">
+  <button class="drawer-close" id="drawerClose">✕</button>
+  <h3>Past scans</h3>
+  <div id="historyList"><div class="history-empty">Loading…</div></div>
+</div>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Know what your<br>skin & hair are telling you.</h1>
+    <p>Ask a question, or take a photo — get clear, general guidance and know when it's time to see a professional.</p>
+
+    <div class="searchbar">
+      <input id="queryInput" type="text" placeholder="Describe what you're noticing, or use the camera →" />
+      <button class="icon-btn" id="cameraToggle" title="Use camera" type="button">
+        <svg viewBox="0 0 24 24"><path d="M4 8a2 2 0 0 1 2-2h1l1.5-2h7L17 6h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      </button>
+      <button class="icon-btn primary" id="askBtn" title="Ask">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div class="hint">Photos are analyzed for general educational information only — not a medical diagnosis.</div>
+
+    <div class="camera-panel" id="cameraPanel">
+      <div class="camera-stage" id="stage">
+        <img id="shotImg" style="display:none" />
+        <div class="picker-empty" id="pickerEmpty">
+          <button class="ghost-btn" id="takePhotoBtn" type="button">📷 Take Photo</button>
+          <button class="ghost-btn" id="choosePhotoBtn" type="button">🖼 Choose from Library</button>
+        </div>
+      </div>
+      <div class="camera-controls" id="shotControls" style="display:none">
+        <button class="ghost-btn" id="retake" type="button">Retake</button>
+        <button class="ghost-btn" id="closeCam2" type="button">Cancel</button>
+        <button class="icon-btn primary" id="analyzeBtn" title="Analyze" type="button">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="visually-hidden" />
+      <input type="file" id="fileInput" accept="image/*" class="visually-hidden" />
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      Looking closely…
+    </div>
+
+    <div class="results" id="results"></div>
+  </div>
+</section>
+
+<section class="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Show or tell</h4>
+        <p>Type what you're experiencing, or snap a photo of the area of concern.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>Get clarity</h4>
+        <p>Receive plain-language, general information about what it could be and simple care steps.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>Know when to act</h4>
+        <p>We'll flag anything that's worth a real dermatologist or trichologist's attention.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><strong>DermaAI is not a medical device and does not provide diagnoses.</strong> It offers general, educational information based on a photo or description you share. It cannot detect every condition and can be wrong. Always consult a licensed dermatologist, trichologist, or physician for diagnosis and treatment — especially for anything painful, rapidly changing, bleeding, or otherwise concerning.</p>
+    <p>© 2026 DermaAI. Built for informational purposes only.</p>
+  </div>
+</footer>
+
+<script>
+window.addEventListener('error', function(e){
+  const b = document.getElementById('debugBanner');
+  if(b){ b.style.display='block'; b.textContent = 'Debug: ' + e.message + ' (' + (e.filename||'') + ':' + e.lineno + ')'; }
+});
+
+let stream = null;
+let currentBlob = null;
+let facingMode = "environment";
+
+// This build talks to your own backend (server.js) instead of the Claude
+// artifact sandbox's window.claude capabilities. No initCaps needed — the
+// backend handles the AI calls and keeps history per-visitor via a cookie.
+
+/* ---------- related condition art (abstract, illustrative — not real photos) ---------- */
+const CATS = {
+  acne:{color1:"#ff9a8b",color2:"#ff6a88",pattern:"dots",cards:[
+    ["Common pattern","Small raised bumps, often on face or chest"],
+    ["Typical triggers","Hormones, clogged pores, friction"],
+    ["Gentle care","Non-comedogenic products, avoid over-scrubbing"]]},
+  dryness:{color1:"#a8d8ea",color2:"#7ec8e3",pattern:"waves",cards:[
+    ["Common pattern","Flaking, tightness, rough texture"],
+    ["Typical triggers","Cold weather, harsh soap, low humidity"],
+    ["Gentle care","Fragrance-free moisturizer, shorter showers"]]},
+  eczema:{color1:"#c9b8ff",color2:"#a78bfa",pattern:"waves",cards:[
+    ["Common pattern","Itchy, red, sometimes scaly patches"],
+    ["Typical triggers","Irritants, stress, weather changes"],
+    ["Gentle care","Fragrance-free emollients, avoid scratching"]]},
+  dandruff:{color1:"#ffd97d",color2:"#ffb703",pattern:"dots",cards:[
+    ["Common pattern","Flaky scalp, mild itch"],
+    ["Typical triggers","Oil buildup, yeast overgrowth, dry scalp"],
+    ["Gentle care","Anti-dandruff shampoo, gentle scalp massage"]]},
+  hairloss:{color1:"#b8c6db",color2:"#8ba3c7",pattern:"strands",cards:[
+    ["Common pattern","Thinning part line or shedding"],
+    ["Typical triggers","Stress, hormones, nutrient gaps"],
+    ["Gentle care","Gentle handling, balanced diet, patience"]]},
+  oiliness:{color1:"#a0e7c4",color2:"#5fd6a3",pattern:"shine",cards:[
+    ["Common pattern","Shiny T-zone, enlarged pores"],
+    ["Typical triggers","Genetics, humidity, over-cleansing"],
+    ["Gentle care","Lightweight gel moisturizer, don't over-wash"]]},
+  pigmentation:{color1:"#ffc98b",color2:"#f7a072",pattern:"spots",cards:[
+    ["Common pattern","Darker patches or uneven tone"],
+    ["Typical triggers","Sun exposure, past irritation, hormones"],
+    ["Gentle care","Daily SPF, gradual gentle brighteners"]]},
+  general:{color1:"#d4d4d8",color2:"#a1a1a6",pattern:"ring",cards:[
+    ["Skin basics","Cleanse, moisturize, protect daily"],
+    ["Hair basics","Gentle wash, avoid excess heat"],
+    ["When in doubt","A professional check never hurts"]]}
+};
+function svgArt(pattern,c1,c2,seed){
+  const id = "g"+seed;
+  let inner = "";
+  if(pattern==="dots"){for(let i=0;i<14;i++){const x=(i*37+seed*13)%190,y=(i*53+seed*7)%130,r=3+((i+seed)%4);inner+=`<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" fill-opacity="0.25"/>`;}}
+  else if(pattern==="waves"){for(let i=0;i<5;i++){inner+=`<path d="M0 ${20+i*22} Q 47 ${5+i*22} 95 ${20+i*22} T 190 ${20+i*22}" stroke="#fff" stroke-opacity="0.3" stroke-width="3" fill="none"/>`;}}
+  else if(pattern==="strands"){for(let i=0;i<9;i++){const x=10+i*21;inner+=`<path d="M${x} 0 Q ${x+10} 65 ${x-4} 130" stroke="#fff" stroke-opacity="0.35" stroke-width="3" fill="none"/>`;}}
+  else if(pattern==="shine"){inner=`<circle cx="140" cy="35" r="38" fill="#fff" fill-opacity="0.25"/><circle cx="60" cy="95" r="22" fill="#fff" fill-opacity="0.18"/>`;}
+  else if(pattern==="spots"){for(let i=0;i<8;i++){const x=(i*41+seed*11)%180+5,y=(i*29+seed*17)%110+10;inner+=`<ellipse cx="${x}" cy="${y}" rx="9" ry="6" fill="#fff" fill-opacity="0.22"/>`;}}
+  else{inner=`<circle cx="95" cy="65" r="42" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="6"/>`;}
+  return `<svg class="art" viewBox="0 0 190 130" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="190" height="130" fill="url(#${id})"/>${inner}</svg>`;
+}
+function renderRelated(category){
+  const cat = CATS[category] || CATS.general;
+  const cards = cat.cards.map((c,i)=>`
+    <div class="rel-card">
+      ${svgArt(cat.pattern,cat.color1,cat.color2,i)}
+      <div class="cap"><b>${escapeHtml(c[0])}</b><span>${escapeHtml(c[1])}</span></div>
+    </div>`).join('');
+  return `<div class="related-label">Related — swipe for more</div><div class="carousel">${cards}</div>`;
+}
+
+/* ---------- history ---------- */
+const historyBtn = document.getElementById('historyBtn');
+const drawer = document.getElementById('drawer');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+const drawerClose = document.getElementById('drawerClose');
+const historyList = document.getElementById('historyList');
+
+function openDrawer(){ drawer.classList.add('open'); drawerBackdrop.classList.add('open'); loadHistory(); }
+function closeDrawer(){ drawer.classList.remove('open'); drawerBackdrop.classList.remove('open'); }
+historyBtn.addEventListener('click', openDrawer);
+drawerClose.addEventListener('click', closeDrawer);
+drawerBackdrop.addEventListener('click', closeDrawer);
+
+function thumbSquare(blob, size){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement('canvas'); c.width=size; c.height=size;
+      const ctx = c.getContext('2d');
+      const m = Math.min(img.width, img.height);
+      ctx.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,size,size);
+      resolve(c.toDataURL('image/jpeg',0.6));
+    };
+    img.onerror = ()=>resolve(null);
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+// The backend saves every /api/analyze call to SQLite automatically,
+// scoped to this browser's session cookie — no client-side save needed.
+
+async function loadHistory(){
+  try{
+    const resp = await fetch('/api/history');
+    const docs = await resp.json();
+    if(!docs.length){ historyList.innerHTML = '<div class="history-empty">No scans yet — your history will show up here.</div>'; return; }
+    historyList.innerHTML = docs.map(d=>{
+      const date = new Date(d.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      const thumb = d.thumb
+        ? `<img class="history-thumb" src="${d.thumb}"/>`
+        : `<div class="history-thumb placeholder">${d.urgent?'⚠️':'💬'}</div>`;
+      return `<div class="history-item" data-entry='${escapeAttr(JSON.stringify(d))}'>
+        ${thumb}
+        <div class="history-meta"><div class="t">${escapeHtml(d.title)}</div><div class="d">${date}</div></div>
+      </div>`;
+    }).join('');
+    historyList.querySelectorAll('.history-item').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const data = JSON.parse(el.getAttribute('data-entry'));
+        closeDrawer();
+        showResults(data, false);
+        results.scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    });
+  }catch(e){
+    historyList.innerHTML = '<div class="history-empty">Couldn\'t load history right now.</div>';
+  }
+}
+function escapeAttr(s){ return s.replace(/'/g,'&#39;'); }
+
+const cameraToggle = document.getElementById('cameraToggle');
+const cameraPanel = document.getElementById('cameraPanel');
+const shotImg = document.getElementById('shotImg');
+const pickerEmpty = document.getElementById('pickerEmpty');
+const shotControls = document.getElementById('shotControls');
+const closeCam2 = document.getElementById('closeCam2');
+const retake = document.getElementById('retake');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const cameraInput = document.getElementById('cameraInput');
+const fileInput = document.getElementById('fileInput');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+const choosePhotoBtn = document.getElementById('choosePhotoBtn');
+const loading = document.getElementById('loading');
+const results = document.getElementById('results');
+const askBtn = document.getElementById('askBtn');
+const queryInput = document.getElementById('queryInput');
+
+function resetPickerView(){
+  shotImg.style.display='none'; shotImg.src='';
+  pickerEmpty.style.display='flex';
+  shotControls.style.display='none';
+  currentBlob = null;
+}
+
+function debugFlash(msg){
+  const b = document.getElementById('debugBanner');
+  if(b){ b.style.display='block'; b.style.background='#0071e3'; b.textContent = 'Debug: ' + msg; }
+}
+
+cameraToggle.addEventListener('click', ()=>{
+  debugFlash('camera icon tapped, opening panel');
+  cameraPanel.classList.add('open');
+  results.classList.remove('open');
+  resetPickerView();
+});
+closeCam2.addEventListener('click', ()=>{ cameraPanel.classList.remove('open'); });
+takePhotoBtn.addEventListener('click', ()=>{ debugFlash('Take Photo tapped'); cameraInput.click(); });
+choosePhotoBtn.addEventListener('click', ()=>{ debugFlash('Choose Photo tapped'); fileInput.click(); });
+retake.addEventListener('click', resetPickerView);
+
+function handlePicked(file){
+  if(!file){ debugFlash('no file received from picker'); return; }
+  debugFlash('photo received: ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)');
+  currentBlob = file;
+  shotImg.src = URL.createObjectURL(file);
+  shotImg.style.display='block';
+  pickerEmpty.style.display='none';
+  shotControls.style.display='flex';
+}
+cameraInput.addEventListener('change', e=> handlePicked(e.target.files[0]));
+fileInput.addEventListener('change', e=> handlePicked(e.target.files[0]));
+
+analyzeBtn.addEventListener('click', ()=> runAnalysis(currentBlob, queryInput.value.trim()));
+askBtn.addEventListener('click', ()=>{
+  if(currentBlob){ runAnalysis(currentBlob, queryInput.value.trim()); }
+  else if(queryInput.value.trim()){ runAnalysis(null, queryInput.value.trim()); }
+  else { cameraToggle.click(); }
+});
+
+function blobToBase64(blob){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=> res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function runAnalysis(blob, text){
+  cameraPanel.classList.remove('open');
+  results.classList.remove('open');
+  loading.classList.add('open');
+
+  let imageBase64 = null;
+  if(blob){
+    try{ imageBase64 = await blobToBase64(blob); }catch(e){}
+  }
+
+  try{
+    const resp = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ text, imageBase64 })
+    });
+    if(!resp.ok) throw new Error('bad response');
+    const out = await resp.json();
+    loading.classList.remove('open');
+    showResults(out);
+  }catch(e){
+    loading.classList.remove('open');
+    showResults({
+      title:"Couldn't complete analysis",
+      urgent:false,
+      body:"Something went wrong reaching the backend. Make sure server.js is running and your API key is set, then try again.",
+      tips:[]
+    });
+  }
+}
+
+function showResults(data){
+  const urgentBadge = data.urgent
+    ? `<div class="badge warn">⚠ Worth prompt attention</div>`
+    : `<div class="badge info">General information</div>`;
+  const tips = (data.tips||[]).map(t=>`<span class="chip">${escapeHtml(t)}</span>`).join('');
+  results.innerHTML = `
+    <div class="result-card">
+      ${urgentBadge}
+      <h3>${escapeHtml(data.title||"What we noticed")}</h3>
+      <p>${escapeHtml(data.body||"")}</p>
+      ${tips ? `<div class="chip-row">${tips}</div>` : ''}
+      ${renderRelated(data.category)}
+    </div>
+    <div class="disclaimer-box">
+      <strong>Not a diagnosis.</strong> ${escapeHtml(data.seePro || "For anything persistent, painful, or changing, please see a licensed dermatologist or trichologist.")} DermaAI offers general educational information only and can be wrong — professional evaluation is the only way to get an actual diagnosis and treatment plan.
+    </div>
+    <div class="chat-panel">
+      <div class="chat-head">Ask a follow-up question</div>
+      <div class="chat-log" id="chatLog"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="e.g. what products should I avoid?" />
+        <button class="chat-send" id="chatSend" title="Send">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+  results.classList.add('open');
+  results.scrollIntoView({behavior:'smooth', block:'start'});
+  initChat(data);
+}
+
+/* ---------- follow-up chat ---------- */
+let chatHistory = [];
+let chatContext = null;
+
+function initChat(data){
+  chatContext = data;
+  chatHistory = [];
+  const log = document.getElementById('chatLog');
+  const input = document.getElementById('chatInput');
+  const send = document.getElementById('chatSend');
+  if(!log) return;
+  log.innerHTML = '';
+  const go = ()=>{
+    const text = input.value.trim();
+    if(!text) return;
+    input.value = '';
+    sendChatMessage(text);
+  };
+  send.addEventListener('click', go);
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') go(); });
+}
+
+function addBubble(role, text){
+  const log = document.getElementById('chatLog');
+  if(!log) return null;
+  const b = document.createElement('div');
+  b.className = 'bubble ' + (role==='user' ? 'user' : 'ai');
+  b.textContent = text;
+  log.appendChild(b);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+
+async function sendChatMessage(text){
+  addBubble('user', text);
+  const priorHistory = chatHistory.map(m => ({ role: m.role==='user'?'user':'assistant', content: m.text }));
+  chatHistory.push({role:'user', text});
+  const typing = addBubble('ai', 'Thinking…');
+  typing.classList.add('typing');
+
+  try{
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        context: { title: chatContext.title, body: chatContext.body, category: chatContext.category },
+        history: priorHistory,
+        question: text
+      })
+    });
+    if(!resp.ok) throw new Error('bad response');
+    const out = await resp.json();
+    const reply = out.text || "Sorry, I couldn't come up with an answer.";
+    typing.textContent = reply;
+    typing.classList.remove('typing');
+    chatHistory.push({role:'assistant', text: reply});
+  }catch(e){
+    typing.textContent = "Something went wrong — make sure server.js is running, then try again.";
+    typing.classList.remove('typing');
+  }
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>
