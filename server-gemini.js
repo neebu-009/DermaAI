@@ -14,21 +14,32 @@ app.use(cookieParser());
 app.use(express.static(__dirname)); // serves index.html, css, js
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
+// Models are tried in order. If one is overloaded (503/429) or retired (404),
+// the server automatically moves on to the next one.
+const MODEL_NAMES = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
+const models = MODEL_NAMES.map(name => ({ name, model: genAI.getGenerativeModel({ model: name }) }));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Retries when Google's servers are temporarily overloaded (503) or rate limited (429)
-async function generateWithRetry(input, attempts = 5) {
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      return await model.generateContent(input);
-    } catch (e) {
-      const retryable = e.status === 503 || e.status === 429;
-      if (!retryable || i === attempts) throw e;
-      const waitMs = i * 3000; // 3s, 6s, 9s, 12s
-      console.log(`Gemini busy (${e.status}), retrying in ${waitMs / 1000}s... (attempt ${i}/${attempts})`);
-      await new Promise(r => setTimeout(r, waitMs));
+async function generateWithRetry(input) {
+  let lastError;
+  for (const { name, model } of models) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        return await model.generateContent(input);
+      } catch (e) {
+        lastError = e;
+        if (e.status === 404) { console.log(`${name} not available, skipping`); break; }
+        if (e.status === 503 || e.status === 429) {
+          console.log(`${name} busy (${e.status}), attempt ${attempt}/2`);
+          if (attempt < 2) await sleep(2000);
+          continue;
+        }
+        throw e; // other errors (bad key, bad request) won't be fixed by retrying
+      }
     }
+    console.log(`Switching away from ${name}`);
   }
+  throw lastError;
 }
 
 // ---------- database ----------
